@@ -44,7 +44,7 @@ for (k in 1:100){
     }
   })
   
-  non_null <- 1:276 #vector to hold indices of non_null relationships
+  non_null <- 1:n1 #vector to hold indices of non_null relationships
   j = 0
   for (i in 1:1485){
     if (v[i] == TRUE) {
@@ -53,7 +53,7 @@ for (k in 1:100){
     }
   }
   
-  null <- 1:1209 #vector to hold indices of null relationships
+  null <- 1:n2 #vector to hold indices of null relationships
   j = 0
   for (i in 1:1485){
     if (v[i] == FALSE) {
@@ -62,9 +62,9 @@ for (k in 1:100){
     }
   }
   
-  pp <- 1:276 #vector of p_i
+  pp <- 1:n1 #vector of p_i
   
-  for (i in 1:276){
+  for (i in 1:n1){
     hold <- 1 - u
     for (j in 1:100){
       hold <- hold*B[j,non_null[i]]^(S[j,non_null[i]])
@@ -72,9 +72,9 @@ for (k in 1:100){
     pp[i] <- 1 - hold
   }
   
-  qq <- 1:1209 #vector of q_i
+  qq <- 1:n2 #vector of q_i
   
-  for (i in 1:1209){
+  for (i in 1:n2){
     hold <- 1 - u
     for (j in 1:100){
       hold <- hold*(1-0.05)^(S[j,null[i]])
@@ -95,7 +95,106 @@ dPPV_dat <- as.data.frame(dPPV_vec)
 
 ggplot(data = dPPV_dat, aes(x=dPPV_vec)) + geom_density() + xlim(0,1)
 
+##################################################################################
+
+trial_list <- c()
+for (i in 1:num_trials){ #variance increases as this increases
+  num_sample <- as.integer(runif(1, 5, 50))
+  sample_index <- sample(1:nrow(nhanes_cont), num_sample)
+  nhanes_trial <- nhanes_cont[sample_index,]
+  nhanes_trial <- nhanes_trial[,colSums(is.na(nhanes_trial))<1*(nrow(nhanes_trial))/4]
+  
+  cols <- t( combn(colnames(nhanes_trial), 2) )
+  nhanes_trial_pval <- apply( cols , 1 , function(x){
+    first <- nhanes_trial[x[1]]
+    second <- nhanes_trial[x[2]]
+    v1 <- unlist(first, use.names = FALSE)
+    v2 <- unlist(second, use.names = FALSE)
+    cor.test( v1 , v2, method = 'pearson')$p.value 
+  } )
+  nhanes_trial_bon<- p.adjust(nhanes_trial_pval, method = 'bonferroni')
+  
+  null_list2 <- cbind(cols, nhanes_trial_bon)
+  
+  v2 <- sapply(null_list2[, 3], function(x) x < 0.05)
+  
+  trial_list <- c(trial_list, which(v %in% TRUE))
+}
 
 
+u = 0.1
 
+dPPV_mat2 <- matrix(nrow = 100, ncol = 100)
+
+for (k in 1:100){
+  teams <- matrix(runif(148500), ncol = 1485)
+  for (i in 1:length(trial_list)){
+    for (j in 1:100){
+      if (teams[j, trial_list[i]] > 0.8){
+        teams[j, trial_list[i]] == 1
+      }
+    }
+  }
+  S <- apply(teams, c(1,2), function(x) as.numeric(x > 0.99))
+  
+  B <- apply(S, c(1,2), function(x){
+    if(x == 1){
+      x <- runif(1, min = 0.05, max = 0.25)
+    }
+    else{
+      x = 0
+    }
+  })
+  
+  non_null <- 1:n1
+  j = 0
+  for (i in 1:1485){
+    if (v[i] == TRUE) {
+      non_null[j] = i
+      j = j+1
+    }
+  }
+  
+  null <- 1:n2
+  j = 0
+  for (i in 1:1485){
+    if (v[i] == FALSE) {
+      non_null[j] = i
+      j = j+1
+    }
+  }
+  
+  pp <- 1:n1
+  
+  for (i in 1:n1){
+    hold <- 1 - u
+    for (j in 1:100){
+      hold <- hold*B[j,non_null[i]]^(S[j,non_null[i]])
+    }
+    pp[i] <- 1 - hold
+  }
+  
+  qq <- 1:n2
+  
+  for (i in 1:n2){
+    hold <- 1 - u
+    for (j in 1:100){
+      hold <- hold*(1-0.05)^(S[j,null[i]])
+    }
+    qq[i] <- 1 - hold
+  }
+  
+  P <- rpoibin(100, pp)
+  Q <- rpoibin(100, qq)
+  
+  dPPV <- P/(P+Q)
+  
+  dPPV_mat2[k,] = dPPV
+}
+
+dPPV_vec2 <- as.vector(dPPV_mat2)
+dPPV_dat <- data.frame(v1=dPPV_vec, v2=dPPV_vec2)
+
+data <- melt(dPPV_dat) 
+ggplot(data = data, aes(x=value, fill=variable)) + geom_density(alpha=0.5) + scale_fill_discrete(labels = c("w/o trials", "w/ trials"))
 
