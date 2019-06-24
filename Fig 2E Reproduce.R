@@ -98,7 +98,7 @@ ggplot(data = dPPV_dat, aes(x=dPPV_vec)) + geom_density() + xlim(0,1)
 ##################################################################################
 
 trial_list <- c()
-for (i in 1:num_trials){ #variance increases as this increases
+for (i in 1:100){ #variance increases as number of trials increases
   num_sample <- as.integer(runif(1, 5, 50))
   sample_index <- sample(1:nrow(nhanes_cont), num_sample)
   nhanes_trial <- nhanes_cont[sample_index,]
